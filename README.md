@@ -69,6 +69,7 @@ jobs:
 name: Notify Slack when Gemini review is done
 
 on:
+  workflow_dispatch:
   pull_request_review:
     types: [submitted]
 
