@@ -1,0 +1,29 @@
+name: Notify Slack when Gemini review is done
+
+on:
+  workflow_dispatch:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  notify-slack:
+    if: github.actor == 'gemini-code-assist[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Slack notification
+        env:
+          SLACK_REVIEW_WEBHOOK_URL: ${{ secrets.SLACK_REVIEW_WEBHOOK_URL }}
+          TEXT: "${{ format('Gemini 리뷰({0})가 등록되었습니다: <{1}|{2}> (by {3})', github.event.review.state, github.event.pull_request.html_url, github.event.pull_request.title, github.actor) }}"
+        run: |
+          payload="$(python - <<'PY'
+          import json
+          import os
+
+          print(json.dumps({"text": os.environ.get("TEXT", "")}))
+          PY
+          )"
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "${payload}" \
+            "$SLACK_REVIEW_WEBHOOK_URL"
