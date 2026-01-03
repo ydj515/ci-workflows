@@ -97,4 +97,5 @@ jobs:
             git add .gemini/config.yaml
           fi
           git commit -m "chore: sync gemini styleguide"
+          git pull --rebase
           git push
