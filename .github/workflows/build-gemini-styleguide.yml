@@ -1,0 +1,97 @@
+name: Build Gemini Styleguide
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      standards_ref:
+        required: false
+        type: string
+        default: v1.0.0
+      standards_owner:
+        required: true
+        type: string
+      standards_repo:
+        required: false
+        type: string
+        default: dev-standards
+
+env:
+  DEV_STANDARDS_REF: ${{ inputs.standards_ref }}
+  DEV_STANDARDS_OWNER: ${{ inputs.standards_owner }}
+  DEV_STANDARDS_REPO: ${{ inputs.standards_repo }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/bin/yq \
+            https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo chmod +x /usr/bin/yq
+
+      # 1. styleguide.yml
+      - name: Read styleguide.yml
+        run: |
+          echo "LANGUAGE=$(yq -r '.language' .gemini/styleguide.yml)" >> $GITHUB_ENV
+          echo "FRAMEWORKS=$(yq -r '.frameworks // [] | join(\",\")' .gemini/styleguide.yml)" >> $GITHUB_ENV
+
+      # 2. md 조합
+      - name: Prepare directories
+        run: mkdir -p .gemini/tmp
+
+      - name: Fetch base guide
+        run: |
+          curl -fsSL \
+            https://raw.githubusercontent.com/${DEV_STANDARDS_OWNER}/${DEV_STANDARDS_REPO}/${DEV_STANDARDS_REF}/gemini/base.md \
+            -o .gemini/tmp/00-base.md
+
+      - name: Fetch language guide
+        run: |
+          curl -fsSL \
+            https://raw.githubusercontent.com/${DEV_STANDARDS_OWNER}/${DEV_STANDARDS_REPO}/${DEV_STANDARDS_REF}/gemini/languages/${LANGUAGE}.md \
+            -o .gemini/tmp/10-language.md
+
+      - name: Fetch framework guides
+        run: |
+          if [ -z "$FRAMEWORKS" ]; then
+            echo "No frameworks defined, skipping"
+            exit 0
+          fi
+
+          IFS=',' read -ra FW <<< "$FRAMEWORKS"
+          i=20
+          for fw in "${FW[@]}"; do
+            curl -fsSL \
+              https://raw.githubusercontent.com/${DEV_STANDARDS_OWNER}/${DEV_STANDARDS_REPO}/${DEV_STANDARDS_REF}/gemini/frameworks/${fw}.md \
+              -o .gemini/tmp/${i}-${fw}.md
+            i=$((i+10))
+          done
+
+      - name: Compose styleguide.md
+        run: |
+          cat .gemini/tmp/*.md > .gemini/styleguide.md
+
+      # 3. 배포
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+
+          git add .gemini/styleguide.md
+          if [ -f .gemini/config.yaml ]; then
+            git add .gemini/config.yaml
+          fi
+          git commit -m "chore: sync gemini styleguide"
+          git push
