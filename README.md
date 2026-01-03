@@ -48,7 +48,7 @@ permissions:
 
 jobs:
   sync-guide:
-    uses: your-org/dev-standards/.github/workflows/build-gemini-styleguide.yml@v1.0.0
+    uses: your-org/ci-workflows/.github/workflows/build-gemini-styleguide.yml@v1.0.0
     with:
       standards_owner: your-org
       standards_repo: dev-standards
@@ -58,7 +58,7 @@ jobs:
 ### Notify Slack when Gemini review is done
 
 - 목적: Gemini 리뷰 완료 시 Slack 알림 전송
-- 위치: `.github/workflows/gemini-review-slack.yml`
+- 위치: `.github/workflows/gemini-pr-review-slack-noti.yml`
 - 트리거: `pull_request_review` (submitted)
 - 필수 시크릿:
   - `SLACK_REVIEW_WEBHOOK_URL`
@@ -74,7 +74,7 @@ on:
 
 jobs:
   notify-slack:
-    uses: your-org/dev-standards/.github/workflows/gemini-review-slack.yml@v1.0.0
+    uses: your-org/ci-workflows/.github/workflows/gemini-pr-review-slack-noti.yml@v1.0.0
     secrets: inherit
 ```
 
