@@ -86,16 +86,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "No changes"
-            exit 0
-          fi
-
           git add .gemini/styleguide.md
           if [ -f .gemini/config.yaml ]; then
             git add .gemini/config.yaml
           fi
+
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+
           git commit -m "chore: sync gemini styleguide"
           git pull --rebase
           git push
