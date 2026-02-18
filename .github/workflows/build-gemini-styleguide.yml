@@ -40,7 +40,7 @@ jobs:
       - name: Read styleguide.yml
         run: |
           echo "LANGUAGE=$(yq -r '.language' .gemini/styleguide.yml)" >> $GITHUB_ENV
-          echo "FRAMEWORKS=$(yq -r '.frameworks // [] | join(\",\")' .gemini/styleguide.yml)" >> $GITHUB_ENV
+          echo "FRAMEWORKS=$(yq -r '.frameworks // [] | (if type == "array" then . elif type == "string" then [.] else [] end) | map(tostring) | join(",")' .gemini/styleguide.yml)" >> $GITHUB_ENV
 
       # 2. md 조합
       - name: Prepare directories
