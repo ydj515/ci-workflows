@@ -2,6 +2,10 @@ name: Notify Slack when Gemini review is done
 
 on:
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      SLACK_REVIEW_WEBHOOK_URL:
+        required: true
   pull_request_review:
     types: [submitted]
 
