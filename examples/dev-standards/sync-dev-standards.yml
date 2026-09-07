@@ -1,0 +1,23 @@
+name: Sync Development Standards
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".dev-standards/config.yml"
+  schedule:
+    - cron: "15 0 * * 1"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    # ci-workflows의 발행 tag 또는 commit SHA로 교체합니다.
+    uses: your-org/ci-workflows/.github/workflows/sync-dev-standards.yml@REPLACE_WITH_CI_WORKFLOWS_REF
+    with:
+      standards_owner: your-org
+      standards_repo: dev-standards
+      # dev-standards의 발행 tag 또는 commit SHA로 별도 지정합니다.
+      standards_ref: REPLACE_WITH_DEV_STANDARDS_REF
+      sync_gemini: true

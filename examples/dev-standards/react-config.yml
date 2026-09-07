@@ -1,0 +1,17 @@
+version: 1
+
+base: true
+
+languages:
+  - typescript
+
+frameworks:
+  - react-ts
+
+tools:
+  - eslint
+  - prettier
+  - pnpm
+
+runtimes:
+  - mise

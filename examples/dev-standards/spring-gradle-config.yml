@@ -1,0 +1,22 @@
+version: 1
+
+base: true
+
+languages:
+  - kotlin
+  - java
+
+frameworks:
+  - spring
+
+builds:
+  - gradle
+
+tools:
+  - detekt
+  - checkstyle
+  - pmd
+  - spotbugs
+
+runtimes:
+  - mise

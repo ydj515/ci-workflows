@@ -1,0 +1,211 @@
+name: Sync Development Standards
+
+on:
+  workflow_dispatch:
+    inputs:
+      standards_owner:
+        description: Owner of the development standards repository
+        required: true
+        type: string
+      standards_repo:
+        description: Development standards repository name
+        required: false
+        type: string
+        default: dev-standards
+      standards_ref:
+        description: Standards branch, tag, or commit SHA
+        required: false
+        type: string
+        default: main
+      config_path:
+        description: Path to the development standards selection file
+        required: false
+        type: string
+        default: .dev-standards/config.yml
+      sync_gemini:
+        description: Also sync guide to .gemini/styleguide.md for Gemini Code Assist
+        required: false
+        type: boolean
+        default: true
+      bootstrap_templates:
+        description: Create missing agent files and copy selected configuration templates safely
+        required: false
+        type: boolean
+        default: false
+      bootstrap_mise_profile:
+        description: Explicit mise template profile when the selection is ambiguous
+        required: false
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      standards_owner:
+        description: Owner of the development standards repository
+        required: true
+        type: string
+      standards_repo:
+        description: Development standards repository name
+        required: false
+        type: string
+        default: dev-standards
+      standards_ref:
+        description: Standards branch, tag, or commit SHA
+        required: false
+        type: string
+        default: main
+      config_path:
+        description: Path to the development standards selection file
+        required: false
+        type: string
+        default: .dev-standards/config.yml
+      sync_gemini:
+        description: Also sync guide to .gemini/styleguide.md for Gemini Code Assist
+        required: false
+        type: boolean
+        default: true
+      bootstrap_templates:
+        description: Create missing agent files and copy selected configuration templates safely
+        required: false
+        type: boolean
+        default: false
+      bootstrap_mise_profile:
+        description: Explicit mise template profile when the selection is ambiguous
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: sync-dev-standards-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      STANDARDS_OWNER: ${{ inputs.standards_owner }}
+      STANDARDS_REPO: ${{ inputs.standards_repo }}
+      STANDARDS_REF: ${{ inputs.standards_ref }}
+      CONFIG_PATH: ${{ inputs.config_path }}
+      SYNC_GEMINI: ${{ inputs.sync_gemini }}
+      BOOTSTRAP_TEMPLATES: ${{ inputs.bootstrap_templates }}
+      BOOTSTRAP_MISE_PROFILE: ${{ inputs.bootstrap_mise_profile }}
+      BOOTSTRAP_MANIFEST: /tmp/dev-standards-bootstrap-files
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v7
+
+      - name: Update project checkout
+        shell: bash
+        run: git pull --rebase
+
+      - name: Validate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$STANDARDS_OWNER" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+            echo "Invalid standards_owner" >&2
+            exit 1
+          fi
+          if [[ ! "$STANDARDS_REPO" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+            echo "Invalid standards_repo" >&2
+            exit 1
+          fi
+          if [[ ! "$STANDARDS_REF" =~ ^[A-Za-z0-9._/-]+$ ]] || [[ "$STANDARDS_REF" == -* ]]; then
+            echo "Invalid standards_ref" >&2
+            exit 1
+          fi
+          if [[ ! -f "$CONFIG_PATH" ]]; then
+            echo "Configuration file not found: $CONFIG_PATH" >&2
+            exit 1
+          fi
+          if [[ -n "$BOOTSTRAP_MISE_PROFILE" ]] &&
+             [[ ! "$BOOTSTRAP_MISE_PROFILE" =~ ^(gradle|maven|go|python|typescript)$ ]]; then
+            echo "Invalid bootstrap_mise_profile" >&2
+            exit 1
+          fi
+
+      - name: Checkout development standards
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.standards_owner }}/${{ inputs.standards_repo }}
+          ref: ${{ inputs.standards_ref }}
+          path: .dev-standards-source
+          persist-credentials: false
+
+      - name: Compose development standards
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          bash .dev-standards-source/scripts/compose.sh \
+            --source .dev-standards-source \
+            --config "$CONFIG_PATH" \
+            --output .dev-standards/styleguide.md \
+            --modules-dir .dev-standards/standards \
+            --source-ref "$STANDARDS_OWNER/$STANDARDS_REPO@$STANDARDS_REF"
+
+          if [ "$SYNC_GEMINI" = "true" ] || [ -d .gemini ]; then
+            mkdir -p .gemini
+            cp .dev-standards/styleguide.md .gemini/styleguide.md
+          fi
+
+          if [ -f .dev-standards/guide.md ]; then
+            rm -f -- .dev-standards/guide.md
+          fi
+
+      - name: Bootstrap configuration templates
+        if: ${{ inputs.bootstrap_templates }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          args=(
+            --source .dev-standards-source
+            --config "$CONFIG_PATH"
+            --target .
+            --manifest "$BOOTSTRAP_MANIFEST"
+          )
+          if [[ -n "$BOOTSTRAP_MISE_PROFILE" ]]; then
+            args+=(--mise-profile "$BOOTSTRAP_MISE_PROFILE")
+          fi
+
+          bash .dev-standards-source/scripts/bootstrap.sh "${args[@]}"
+
+      - name: Clean up temporary source
+        if: always()
+        shell: bash
+        run: rm -rf -- .dev-standards-source
+
+      - name: Commit and push if changed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- .dev-standards/styleguide.md
+          git add -A -- .dev-standards/standards
+          if git ls-files --error-unmatch .dev-standards/guide.md >/dev/null 2>&1; then
+            git add -u -- .dev-standards/guide.md
+          fi
+          if [ -f .gemini/styleguide.md ]; then
+            git add -- .gemini/styleguide.md
+          fi
+          if [ -f "$BOOTSTRAP_MANIFEST" ]; then
+            while IFS= read -r bootstrap_file; do
+              if [[ -n "$bootstrap_file" ]]; then
+                git add -- "$bootstrap_file"
+              fi
+            done < "$BOOTSTRAP_MANIFEST"
+          fi
+
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+
+          git commit -m "chore: sync development standards"
+          git push

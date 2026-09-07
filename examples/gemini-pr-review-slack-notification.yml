@@ -1,0 +1,11 @@
+name: Notify Slack when Gemini review is done
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  notify-slack:
+    # ci-workflows의 발행 tag 또는 commit SHA로 교체합니다.
+    uses: your-org/ci-workflows/.github/workflows/gemini-pr-review-slack-noti.yml@REPLACE_WITH_CI_WORKFLOWS_REF
+    secrets: inherit
