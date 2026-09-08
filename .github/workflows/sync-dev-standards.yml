@@ -13,10 +13,10 @@ on:
         type: string
         default: dev-standards
       standards_ref:
-        description: Standards branch, tag, or commit SHA
+        description: Standards branch, tag, commit SHA, or latest-release
         required: false
         type: string
-        default: main
+        default: latest-release
       config_path:
         description: Path to the development standards selection file
         required: false
@@ -37,6 +37,21 @@ on:
         required: false
         type: string
         default: ""
+      delivery_mode:
+        description: Deliver changes through a pull request or direct push
+        required: false
+        type: string
+        default: pull-request
+      lock_path:
+        description: Path to the applied standards state file
+        required: false
+        type: string
+        default: .dev-standards/lock.json
+      pr_branch:
+        description: Branch used for development standards pull requests
+        required: false
+        type: string
+        default: automation/dev-standards-sync
   workflow_call:
     inputs:
       standards_owner:
@@ -49,10 +64,10 @@ on:
         type: string
         default: dev-standards
       standards_ref:
-        description: Standards branch, tag, or commit SHA
+        description: Standards branch, tag, commit SHA, or latest-release
         required: false
         type: string
-        default: main
+        default: latest-release
       config_path:
         description: Path to the development standards selection file
         required: false
@@ -73,9 +88,24 @@ on:
         required: false
         type: string
         default: ""
+      delivery_mode:
+        description: Deliver changes through a pull request or direct push
+        required: false
+        type: string
+        default: pull-request
+      lock_path:
+        description: Path to the applied standards state file
+        required: false
+        type: string
+        default: .dev-standards/lock.json
+      pr_branch:
+        description: Branch used for development standards pull requests
+        required: false
+        type: string
+        default: automation/dev-standards-sync
 
 concurrency:
-  group: sync-dev-standards-${{ github.repository }}-${{ github.ref }}
+  group: sync-dev-standards-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
@@ -83,7 +113,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     env:
+      GH_TOKEN: ${{ github.token }}
       STANDARDS_OWNER: ${{ inputs.standards_owner }}
       STANDARDS_REPO: ${{ inputs.standards_repo }}
       STANDARDS_REF: ${{ inputs.standards_ref }}
@@ -91,19 +123,31 @@ jobs:
       SYNC_GEMINI: ${{ inputs.sync_gemini }}
       BOOTSTRAP_TEMPLATES: ${{ inputs.bootstrap_templates }}
       BOOTSTRAP_MISE_PROFILE: ${{ inputs.bootstrap_mise_profile }}
+      DELIVERY_MODE: ${{ inputs.delivery_mode }}
+      LOCK_PATH: ${{ inputs.lock_path }}
+      PR_BRANCH: ${{ inputs.pr_branch }}
+      BASE_BRANCH: ${{ github.event.repository.default_branch }}
       BOOTSTRAP_MANIFEST: /tmp/dev-standards-bootstrap-files
     steps:
       - name: Checkout project
         uses: actions/checkout@v7
-
-      - name: Update project checkout
-        shell: bash
-        run: git pull --rebase
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Validate inputs
         shell: bash
         run: |
           set -euo pipefail
+
+          validate_relative_path() {
+            local value="$1"
+            local label="$2"
+            if [[ -z "$value" || "$value" == /* || "$value" =~ (^|/)\.\.(/|$) ]]; then
+              echo "Invalid $label" >&2
+              exit 1
+            fi
+          }
 
           if [[ ! "$STANDARDS_OWNER" =~ ^[A-Za-z0-9_.-]+$ ]]; then
             echo "Invalid standards_owner" >&2
@@ -117,6 +161,8 @@ jobs:
             echo "Invalid standards_ref" >&2
             exit 1
           fi
+          validate_relative_path "$CONFIG_PATH" "config_path"
+          validate_relative_path "$LOCK_PATH" "lock_path"
           if [[ ! -f "$CONFIG_PATH" ]]; then
             echo "Configuration file not found: $CONFIG_PATH" >&2
             exit 1
@@ -126,16 +172,72 @@ jobs:
             echo "Invalid bootstrap_mise_profile" >&2
             exit 1
           fi
+          if [[ ! "$DELIVERY_MODE" =~ ^(pull-request|direct)$ ]]; then
+            echo "Invalid delivery_mode" >&2
+            exit 1
+          fi
+          if [[ "$PR_BRANCH" == "$BASE_BRANCH" ]]; then
+            echo "pr_branch must differ from the default branch" >&2
+            exit 1
+          fi
+          if ! git check-ref-format --branch "$PR_BRANCH" >/dev/null 2>&1; then
+            echo "Invalid pr_branch" >&2
+            exit 1
+          fi
+
+      - name: Configure delivery branch
+        if: ${{ inputs.delivery_mode == 'pull-request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin \
+            "refs/heads/$BASE_BRANCH:refs/remotes/origin/$BASE_BRANCH"
+
+          if git ls-remote --exit-code --heads origin "refs/heads/$PR_BRANCH" >/dev/null 2>&1; then
+            git fetch origin \
+              "refs/heads/$PR_BRANCH:refs/remotes/origin/$PR_BRANCH"
+            git switch --create "$PR_BRANCH" --track "origin/$PR_BRANCH"
+            git merge --no-edit "origin/$BASE_BRANCH"
+          else
+            git switch --create "$PR_BRANCH" "origin/$BASE_BRANCH"
+          fi
+
+      - name: Resolve development standards ref
+        id: standards
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          resolved_ref="$STANDARDS_REF"
+          if [[ "$STANDARDS_REF" == "latest-release" ]]; then
+            resolved_ref="$(
+              gh api \
+                "repos/$STANDARDS_OWNER/$STANDARDS_REPO/releases/latest" \
+                --jq '.tag_name'
+            )"
+          fi
+
+          if [[ -z "$resolved_ref" ]]; then
+            echo "Could not resolve standards_ref" >&2
+            exit 1
+          fi
+
+          echo "resolved_ref=$resolved_ref" >> "$GITHUB_OUTPUT"
 
       - name: Checkout development standards
         uses: actions/checkout@v7
         with:
           repository: ${{ inputs.standards_owner }}/${{ inputs.standards_repo }}
-          ref: ${{ inputs.standards_ref }}
+          ref: ${{ steps.standards.outputs.resolved_ref }}
           path: .dev-standards-source
           persist-credentials: false
 
       - name: Compose development standards
+        env:
+          RESOLVED_REF: ${{ steps.standards.outputs.resolved_ref }}
         shell: bash
         run: |
           set -euo pipefail
@@ -145,14 +247,14 @@ jobs:
             --config "$CONFIG_PATH" \
             --output .dev-standards/styleguide.md \
             --modules-dir .dev-standards/standards \
-            --source-ref "$STANDARDS_OWNER/$STANDARDS_REPO@$STANDARDS_REF"
+            --source-ref "$STANDARDS_OWNER/$STANDARDS_REPO@$RESOLVED_REF"
 
-          if [ "$SYNC_GEMINI" = "true" ] || [ -d .gemini ]; then
+          if [[ "$SYNC_GEMINI" == "true" || -d .gemini ]]; then
             mkdir -p .gemini
             cp .dev-standards/styleguide.md .gemini/styleguide.md
           fi
 
-          if [ -f .dev-standards/guide.md ]; then
+          if [[ -f .dev-standards/guide.md ]]; then
             rm -f -- .dev-standards/guide.md
           fi
 
@@ -174,27 +276,152 @@ jobs:
 
           bash .dev-standards-source/scripts/bootstrap.sh "${args[@]}"
 
+      - name: Write standards state
+        env:
+          RESOLVED_REF: ${{ steps.standards.outputs.resolved_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          resolved_commit="$(git -C .dev-standards-source rev-parse HEAD)"
+          config_sha256="$(sha256sum "$CONFIG_PATH" | awk '{print $1}')"
+          files='{}'
+
+          if [[ -f "$LOCK_PATH" ]]; then
+            files="$(
+              jq -c '
+                (.files // {})
+                | with_entries(select(.value.ownership != "managed"))
+              ' "$LOCK_PATH"
+            )"
+          fi
+
+          files="$(
+            jq -c --arg path "$CONFIG_PATH" \
+              '. + {($path): {ownership: "project-owned"}}' <<< "$files"
+          )"
+
+          record_managed() {
+            local path="$1"
+            local checksum
+            checksum="$(sha256sum "$path" | awk '{print $1}')"
+            files="$(
+              jq -c \
+                --arg path "$path" \
+                --arg checksum "$checksum" \
+                '. + {($path): {ownership: "managed", sha256: $checksum}}' \
+                <<< "$files"
+            )"
+          }
+
+          record_project_owned() {
+            local path="$1"
+            if [[ -f "$path" ]] &&
+               ! jq -e --arg path "$path" 'has($path)' <<< "$files" >/dev/null; then
+              files="$(
+                jq -c --arg path "$path" \
+                  '. + {($path): {ownership: "project-owned"}}' <<< "$files"
+              )"
+            fi
+          }
+
+          record_seed() {
+            local path="$1"
+            local ownership="seed"
+            local checksum
+
+            case "$path" in
+              AGENTS.md|CLAUDE.md|GEMINI.md)
+                ownership="project-owned"
+                ;;
+            esac
+
+            if jq -e --arg path "$path" 'has($path)' <<< "$files" >/dev/null; then
+              return
+            fi
+
+            checksum="$(sha256sum "$path" | awk '{print $1}')"
+            files="$(
+              jq -c \
+                --arg path "$path" \
+                --arg ownership "$ownership" \
+                --arg checksum "$checksum" \
+                '. + {($path): {
+                  ownership: $ownership,
+                  bootstrapSha256: $checksum
+                }}' <<< "$files"
+            )"
+          }
+
+          record_managed .dev-standards/styleguide.md
+          while IFS= read -r managed_file; do
+            record_managed "$managed_file"
+          done < <(find .dev-standards/standards -type f -print | LC_ALL=C sort)
+
+          if [[ -f .gemini/styleguide.md ]]; then
+            record_managed .gemini/styleguide.md
+          fi
+
+          for agent_file in AGENTS.md CLAUDE.md GEMINI.md; do
+            record_project_owned "$agent_file"
+          done
+
+          if [[ -f "$BOOTSTRAP_MANIFEST" ]]; then
+            while IFS= read -r bootstrap_file; do
+              if [[ -n "$bootstrap_file" ]]; then
+                record_seed "$bootstrap_file"
+              fi
+            done < "$BOOTSTRAP_MANIFEST"
+          fi
+
+          mkdir -p "$(dirname "$LOCK_PATH")"
+          jq -n \
+            --arg repository "$STANDARDS_OWNER/$STANDARDS_REPO" \
+            --arg requestedRef "$STANDARDS_REF" \
+            --arg resolvedRef "$RESOLVED_REF" \
+            --arg commit "$resolved_commit" \
+            --arg configPath "$CONFIG_PATH" \
+            --arg configSha256 "$config_sha256" \
+            --argjson files "$files" \
+            '{
+              schemaVersion: 1,
+              source: {
+                repository: $repository,
+                requestedRef: $requestedRef,
+                resolvedRef: $resolvedRef,
+                commit: $commit
+              },
+              config: {
+                path: $configPath,
+                sha256: $configSha256
+              },
+              files: $files
+            }' > "$LOCK_PATH.tmp"
+          mv "$LOCK_PATH.tmp" "$LOCK_PATH"
+
       - name: Clean up temporary source
         if: always()
         shell: bash
         run: rm -rf -- .dev-standards-source
 
-      - name: Commit and push if changed
+      - name: Commit and deliver changes
+        env:
+          RESOLVED_REF: ${{ steps.standards.outputs.resolved_ref }}
         shell: bash
         run: |
           set -euo pipefail
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- .dev-standards/styleguide.md
+          git add -- .dev-standards/styleguide.md "$LOCK_PATH"
           git add -A -- .dev-standards/standards
           if git ls-files --error-unmatch .dev-standards/guide.md >/dev/null 2>&1; then
             git add -u -- .dev-standards/guide.md
           fi
-          if [ -f .gemini/styleguide.md ]; then
+          if [[ -f .gemini/styleguide.md ]]; then
             git add -- .gemini/styleguide.md
           fi
-          if [ -f "$BOOTSTRAP_MANIFEST" ]; then
+          if [[ -f "$BOOTSTRAP_MANIFEST" ]]; then
             while IFS= read -r bootstrap_file; do
               if [[ -n "$bootstrap_file" ]]; then
                 git add -- "$bootstrap_file"
@@ -207,5 +434,37 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore: sync development standards"
-          git push
+          git commit -m "chore: sync development standards to $RESOLVED_REF"
+
+          if [[ "$DELIVERY_MODE" == "direct" ]]; then
+            git push origin "HEAD:$BASE_BRANCH"
+            exit 0
+          fi
+
+          git push --set-upstream origin "$PR_BRANCH"
+
+          pull_request_number="$(
+            gh pr list \
+              --base "$BASE_BRANCH" \
+              --head "$PR_BRANCH" \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+          pull_request_title="chore: sync development standards to $RESOLVED_REF"
+          pull_request_body="$(printf '%s\n\n%s\n%s\n' \
+            'Synchronize centrally managed development standards.' \
+            "- Source: \`$STANDARDS_OWNER/$STANDARDS_REPO@$RESOLVED_REF\`" \
+            "- State: \`$LOCK_PATH\`")"
+
+          if [[ -n "$pull_request_number" ]]; then
+            gh pr edit "$pull_request_number" \
+              --title "$pull_request_title" \
+              --body "$pull_request_body"
+          else
+            gh pr create \
+              --base "$BASE_BRANCH" \
+              --head "$PR_BRANCH" \
+              --title "$pull_request_title" \
+              --body "$pull_request_body"
+          fi

@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 This repository is a catalog of reusable GitHub Actions workflows.
-- `.github/workflows/sync-dev-standards.yml`: Validates `.dev-standards/config.yml`, resolves default architecture profiles, syncs a merged styleguide and selected individual standards, and can explicitly bootstrap non-overwriting configuration files.
+- `.github/workflows/sync-dev-standards.yml`: Resolves a released standards ref, records managed state in `.dev-standards/lock.json`, syncs selected standards, and delivers changes through an idempotent pull request by default.
 - `.github/workflows/gemini-pr-review-slack-noti.yml`: Sends a Slack notification when Gemini Code Assist submits a PR review.
 
 ## Development & Validation

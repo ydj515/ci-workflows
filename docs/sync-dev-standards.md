@@ -13,10 +13,11 @@
 | `.github/workflows/sync-dev-standards.yml` | 필수 | 상시 가이드 동기화 호출 |
 | `.github/workflows/bootstrap-dev-standards.yml` | 선택 | 실제 설정 파일 최초 복사 |
 
-React와 Spring 설정 예시는 다음 파일을 복사해 시작합니다.
+React, Spring, Go 설정 예시는 다음 파일을 복사해 시작합니다.
 
 - [`react-config.yml`](../examples/dev-standards/react-config.yml)
 - [`spring-gradle-config.yml`](../examples/dev-standards/spring-gradle-config.yml)
+- [`go-config.yml`](../examples/dev-standards/go-config.yml)
 
 ## 입력값
 
@@ -24,11 +25,14 @@ React와 Spring 설정 예시는 다음 파일을 복사해 시작합니다.
 | --- | --- | --- | --- |
 | `standards_owner` | 예 | 없음 | `dev-standards` 저장소 소유자 |
 | `standards_repo` | 아니요 | `dev-standards` | 표준 저장소 이름 |
-| `standards_ref` | 아니요 | `main` | 표준 저장소의 branch, tag 또는 commit SHA |
+| `standards_ref` | 아니요 | `latest-release` | 최신 정식 Release, branch, tag 또는 commit SHA |
 | `config_path` | 아니요 | `.dev-standards/config.yml` | 소비 저장소의 선택 설정 경로 |
 | `sync_gemini` | 아니요 | `true` | `.gemini/styleguide.md` 동기화 여부 |
 | `bootstrap_templates` | 아니요 | `false` | agent 파일과 선택 설정의 최초 복사 여부 |
 | `bootstrap_mise_profile` | 아니요 | 빈 값 | 모호한 mise 후보를 선택할 profile |
+| `delivery_mode` | 아니요 | `pull-request` | `pull-request` 또는 호환용 `direct` 전달 방식 |
+| `lock_path` | 아니요 | `.dev-standards/lock.json` | 적용 버전과 checksum 상태 파일 |
+| `pr_branch` | 아니요 | `automation/dev-standards-sync` | 반복 갱신할 pull request branch |
 
 ## 두 버전 ref의 의미
 
@@ -37,19 +41,18 @@ React와 Spring 설정 예시는 다음 파일을 복사해 시작합니다.
 ```yaml
 jobs:
   sync:
-    uses: your-org/ci-workflows/.github/workflows/sync-dev-standards.yml@v2.1.0
+    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.2.0
     with:
-      standards_owner: your-org
+      standards_owner: ydj515
       standards_repo: dev-standards
-      standards_ref: v1.4.0
+      standards_ref: latest-release
+      delivery_mode: pull-request
 ```
-
-위 버전은 의미를 설명하기 위한 예시이며, 실제로 발행한 tag로 교체해야 합니다.
 
 | 위치 | 대상 저장소 | 결정하는 내용 |
 | --- | --- | --- |
-| `uses: ...@v2.1.0` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·commit 절차 |
-| `standards_ref: v1.4.0` | `dev-standards` | 사용할 표준 문서, 설정 템플릿, compose/bootstrap 스크립트의 버전 |
+| `uses: ...@v1.2.0` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·PR 절차 |
+| `standards_ref: latest-release` | `dev-standards` | 실행 시점의 최신 정식 Release |
 
 두 버전은 독립적입니다. 예를 들어 workflow 동작은 그대로 유지하면서 표준만 갱신하려면
 `standards_ref`만 변경하고, 동기화 방식이나 workflow 입력 계약을 갱신하려면 `uses` 뒤의
@@ -58,12 +61,14 @@ ref를 변경합니다. 두 저장소의 변경이 함께 필요한 릴리스에
 
 ref에는 다음 값을 사용할 수 있습니다.
 
+- `latest-release`: GitHub의 최신 정식 Release tag를 해석합니다.
 - `main`: 실행할 때마다 해당 저장소 기본 branch의 최신 상태를 사용합니다.
 - `v1.2.0` 같은 tag: 명시한 릴리스 버전을 사용합니다.
 - commit SHA: 정확한 commit을 고정하므로 재현성이 가장 높습니다.
 
-운영 저장소에서는 검증된 tag 또는 commit SHA를 권장합니다. 특히 `main`을 사용하면 소비
-저장소의 파일을 변경하지 않아도 다음 실행 결과가 달라질 수 있습니다.
+주기적 갱신에는 `latest-release`를 사용하고, 재현이 필요한 일회성 실행에는 tag 또는 commit
+SHA를 사용합니다. `main`은 소비 저장소의 파일을 변경하지 않아도 다음 실행 결과가 달라질 수
+있으므로 운영 동기화에는 사용하지 않습니다.
 
 ## 선택 설정 계약
 
@@ -99,8 +104,13 @@ architectures: [domain-oriented]
 ```text
 .dev-standards/styleguide.md
 .dev-standards/standards/**
+.dev-standards/lock.json
 .gemini/styleguide.md          # sync_gemini이 true이거나 .gemini/가 이미 있을 때
 ```
+
+`lock.json`에는 요청 ref, 해석된 Release tag, resolved commit SHA, config checksum, 관리 파일
+checksum과 파일 소유권을 기록합니다. 주간 실행 결과가 기존 상태와 같으면 commit과 pull
+request를 만들지 않습니다.
 
 이전 `.dev-standards.yml`을 유지해야 하는 전환 기간에는 `config_path`를 명시할 수 있지만,
 새 산출물은 항상 `.dev-standards/` 아래에 생성됩니다.
@@ -162,8 +172,12 @@ Repository-specific instructions in this file take precedence over the shared st
 @./AGENTS.md
 ```
 
-## 커밋 동작
+## 변경 전달
 
-reusable workflow는 생성된 파일만 stage하여 `chore: sync development standards` 커밋으로
-현재 branch에 push합니다. 보호 branch에서 사용할 때는 GitHub Actions의 write 권한과
-branch protection 정책을 함께 확인합니다.
+기본 `pull-request` 방식은 `automation/dev-standards-sync` branch를 생성하거나 기존 branch를
+갱신하고 pull request를 엽니다. 이미 열린 pull request가 있으면 같은 pull request의 제목과
+본문을 갱신합니다. 호출 workflow에는 `contents: write`와 `pull-requests: write` 권한이 모두
+필요합니다.
+
+기존 직접 push 동작이 필요한 소비 저장소만 `delivery_mode: direct`를 명시합니다. 보호 branch와
+변경 검토를 사용하는 저장소에서는 기본 pull request 방식을 유지합니다.

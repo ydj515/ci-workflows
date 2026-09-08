@@ -5,15 +5,15 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   bootstrap:
-    # ci-workflows의 발행 tag 또는 commit SHA로 교체합니다.
-    uses: your-org/ci-workflows/.github/workflows/sync-dev-standards.yml@REPLACE_WITH_CI_WORKFLOWS_REF
+    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.2.0
     with:
-      standards_owner: your-org
+      standards_owner: ydj515
       standards_repo: dev-standards
-      # dev-standards의 발행 tag 또는 commit SHA로 별도 지정합니다.
-      standards_ref: REPLACE_WITH_DEV_STANDARDS_REF
+      standards_ref: latest-release
+      delivery_mode: pull-request
       sync_gemini: true
       bootstrap_templates: true

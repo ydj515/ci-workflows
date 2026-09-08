@@ -17,9 +17,10 @@
 - 위치: `.github/workflows/sync-dev-standards.yml`
 - 트리거: `workflow_call`, `workflow_dispatch`
 - 필수 입력: `standards_owner`
-- 권한: `contents: write`
+- 권한: `contents: write`, `pull-requests: write`
 - 주요 산출물: `.dev-standards/styleguide.md`, `.dev-standards/standards/**`, 선택 시
-  `.gemini/styleguide.md`
+  `.gemini/styleguide.md`, `.dev-standards/lock.json`
+- 기본 전달 방식: `automation/dev-standards-sync` branch의 pull request
 
 [상세 사용 가이드](docs/sync-dev-standards.md)
 
@@ -32,6 +33,7 @@
 - [최초 bootstrap workflow](examples/dev-standards/bootstrap-dev-standards.yml)
 - [React 설정](examples/dev-standards/react-config.yml)
 - [Spring/Gradle 설정](examples/dev-standards/spring-gradle-config.yml)
+- [Go 설정](examples/dev-standards/go-config.yml)
 
 ### Notify Slack when Gemini review is done
 

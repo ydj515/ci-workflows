@@ -1,0 +1,12 @@
+version: 1
+
+base: true
+
+languages:
+  - go
+
+architectures:
+  - domain-oriented
+
+runtimes:
+  - mise
