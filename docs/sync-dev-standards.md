@@ -19,6 +19,35 @@ React, Spring, Go 설정 예시는 다음 파일을 복사해 시작합니다.
 - [`spring-gradle-config.yml`](../examples/dev-standards/spring-gradle-config.yml)
 - [`go-config.yml`](../examples/dev-standards/go-config.yml)
 
+## 소비 저장소 사전 설정
+
+`delivery_mode: pull-request`를 사용하려면 소비 저장소에서 GitHub Actions의 pull request 생성
+권한을 한 번 활성화해야 합니다.
+
+1. 소비 저장소의 **Settings**를 엽니다.
+2. 왼쪽 메뉴에서 **Actions > General**을 선택합니다.
+3. 화면 아래쪽 **Workflow permissions**에서
+   **Allow GitHub Actions to create and approve pull requests**를 선택합니다.
+4. 체크박스 바로 아래의 **Save**를 클릭합니다. 화면 위쪽의 **Actions permissions** 또는
+   **Artifact and log retention**에 있는 다른 **Save**가 아닙니다.
+
+위의 기본 권한은 **Read repository contents and packages permissions**로 유지해도 됩니다.
+필요한 쓰기 권한은 아래처럼 호출 workflow에서 범위를 제한해 선언합니다.
+
+![소비 저장소의 GitHub Actions pull request 생성 권한 설정](assets/consume-repo-setting.png)
+
+```yaml
+permissions:
+  contents: write
+  pull-requests: write
+```
+
+저장소 설정을 활성화하지 않으면 생성 branch push는 성공하더라도 pull request 생성은 실패할
+수 있습니다. 실패 후 `automation/dev-standards-sync` branch만 남은 상태에서 workflow를 다시
+실행하면, 변경 사항이 없다는 이유로 성공 종료하면서 pull request를 만들지 않을 수 있습니다.
+이 경우 해당 branch에서 pull request를 한 번 직접 생성하거나, 다음 동기화 전에 생성 branch를
+정리한 뒤 workflow를 실행합니다.
+
 ## 입력값
 
 | 입력 | 필수 | 기본값 | 설명 |
