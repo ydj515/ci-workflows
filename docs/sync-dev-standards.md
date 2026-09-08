@@ -29,6 +29,7 @@ React, Spring, Go 설정 예시는 다음 파일을 복사해 시작합니다.
 | `config_path` | 아니요 | `.dev-standards/config.yml` | 소비 저장소의 선택 설정 경로 |
 | `sync_gemini` | 아니요 | `true` | `.gemini/styleguide.md` 동기화 여부 |
 | `bootstrap_templates` | 아니요 | `false` | agent 파일과 선택 설정의 최초 복사 여부 |
+| `bootstrap_agent_files` | 아니요 | `false` | 누락된 agent 진입 파일만 생성할지 여부 |
 | `bootstrap_mise_profile` | 아니요 | 빈 값 | 모호한 mise 후보를 선택할 profile |
 | `delivery_mode` | 아니요 | `pull-request` | `pull-request` 또는 호환용 `direct` 전달 방식 |
 | `lock_path` | 아니요 | `.dev-standards/lock.json` | 적용 버전과 checksum 상태 파일 |
@@ -41,7 +42,7 @@ React, Spring, Go 설정 예시는 다음 파일을 복사해 시작합니다.
 ```yaml
 jobs:
   sync:
-    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.2.0
+    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.2.1
     with:
       standards_owner: ydj515
       standards_repo: dev-standards
@@ -51,7 +52,7 @@ jobs:
 
 | 위치 | 대상 저장소 | 결정하는 내용 |
 | --- | --- | --- |
-| `uses: ...@v1.2.0` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·PR 절차 |
+| `uses: ...@v1.2.1` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·PR 절차 |
 | `standards_ref: latest-release` | `dev-standards` | 실행 시점의 최신 정식 Release |
 
 두 버전은 독립적입니다. 예를 들어 workflow 동작은 그대로 유지하면서 표준만 갱신하려면
@@ -116,6 +117,14 @@ request를 만들지 않습니다.
 새 산출물은 항상 `.dev-standards/` 아래에 생성됩니다.
 
 ## 최초 Bootstrap
+
+누락된 `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`만 pull request에 추가하려면 상시 동기화
+workflow에 다음 입력을 둡니다. 기존 agent 파일과 프로젝트 설정은 변경하지 않습니다.
+
+```yaml
+with:
+  bootstrap_agent_files: true
+```
 
 프로젝트 설정도 채택하려면
 [`bootstrap-dev-standards.yml`](../examples/dev-standards/bootstrap-dev-standards.yml)을

@@ -21,6 +21,7 @@
 - 주요 산출물: `.dev-standards/styleguide.md`, `.dev-standards/standards/**`, 선택 시
   `.gemini/styleguide.md`, `.dev-standards/lock.json`
 - 기본 전달 방식: `automation/dev-standards-sync` branch의 pull request
+- 초기화 선택: `bootstrap_agent_files`로 누락된 agent 진입 파일만 안전하게 생성
 
 [상세 사용 가이드](docs/sync-dev-standards.md)
 

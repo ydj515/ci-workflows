@@ -32,6 +32,11 @@ on:
         required: false
         type: boolean
         default: false
+      bootstrap_agent_files:
+        description: Create only missing AGENTS.md, CLAUDE.md, and GEMINI.md files
+        required: false
+        type: boolean
+        default: false
       bootstrap_mise_profile:
         description: Explicit mise template profile when the selection is ambiguous
         required: false
@@ -83,6 +88,11 @@ on:
         required: false
         type: boolean
         default: false
+      bootstrap_agent_files:
+        description: Create only missing AGENTS.md, CLAUDE.md, and GEMINI.md files
+        required: false
+        type: boolean
+        default: false
       bootstrap_mise_profile:
         description: Explicit mise template profile when the selection is ambiguous
         required: false
@@ -122,11 +132,13 @@ jobs:
       CONFIG_PATH: ${{ inputs.config_path }}
       SYNC_GEMINI: ${{ inputs.sync_gemini }}
       BOOTSTRAP_TEMPLATES: ${{ inputs.bootstrap_templates }}
+      BOOTSTRAP_AGENT_FILES: ${{ inputs.bootstrap_agent_files }}
       BOOTSTRAP_MISE_PROFILE: ${{ inputs.bootstrap_mise_profile }}
       DELIVERY_MODE: ${{ inputs.delivery_mode }}
       LOCK_PATH: ${{ inputs.lock_path }}
       PR_BRANCH: ${{ inputs.pr_branch }}
       BASE_BRANCH: ${{ github.event.repository.default_branch }}
+      AGENT_BOOTSTRAP_MANIFEST: /tmp/dev-standards-bootstrap-agent-files
       BOOTSTRAP_MANIFEST: /tmp/dev-standards-bootstrap-files
     steps:
       - name: Checkout project
@@ -258,6 +270,19 @@ jobs:
             rm -f -- .dev-standards/guide.md
           fi
 
+      - name: Bootstrap agent entry files
+        if: ${{ inputs.bootstrap_agent_files && !inputs.bootstrap_templates }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          bash .dev-standards-source/scripts/bootstrap.sh \
+            --source .dev-standards-source \
+            --config "$CONFIG_PATH" \
+            --target . \
+            --manifest "$AGENT_BOOTSTRAP_MANIFEST" \
+            --agents-only
+
       - name: Bootstrap configuration templates
         if: ${{ inputs.bootstrap_templates }}
         shell: bash
@@ -336,20 +361,21 @@ jobs:
                 ;;
             esac
 
-            if jq -e --arg path "$path" 'has($path)' <<< "$files" >/dev/null; then
+            checksum="$(sha256sum "$path" | awk '{print $1}')"
+            if jq -e --arg path "$path" \
+              'has($path) and .[$path].bootstrapSha256' \
+              <<< "$files" >/dev/null; then
               return
             fi
 
-            checksum="$(sha256sum "$path" | awk '{print $1}')"
             files="$(
               jq -c \
                 --arg path "$path" \
                 --arg ownership "$ownership" \
                 --arg checksum "$checksum" \
-                '. + {($path): {
-                  ownership: $ownership,
+                '.[$path] = ((.[$path] // {ownership: $ownership}) + {
                   bootstrapSha256: $checksum
-                }}' <<< "$files"
+                })' <<< "$files"
             )"
           }
 
@@ -366,13 +392,15 @@ jobs:
             record_project_owned "$agent_file"
           done
 
-          if [[ -f "$BOOTSTRAP_MANIFEST" ]]; then
-            while IFS= read -r bootstrap_file; do
-              if [[ -n "$bootstrap_file" ]]; then
-                record_seed "$bootstrap_file"
-              fi
-            done < "$BOOTSTRAP_MANIFEST"
-          fi
+          for manifest_file in "$AGENT_BOOTSTRAP_MANIFEST" "$BOOTSTRAP_MANIFEST"; do
+            if [[ -f "$manifest_file" ]]; then
+              while IFS= read -r bootstrap_file; do
+                if [[ -n "$bootstrap_file" ]]; then
+                  record_seed "$bootstrap_file"
+                fi
+              done < "$manifest_file"
+            fi
+          done
 
           mkdir -p "$(dirname "$LOCK_PATH")"
           jq -n \
@@ -395,7 +423,7 @@ jobs:
                 path: $configPath,
                 sha256: $configSha256
               },
-              files: $files
+              files: ($files | to_entries | sort_by(.key) | from_entries)
             }' > "$LOCK_PATH.tmp"
           mv "$LOCK_PATH.tmp" "$LOCK_PATH"
 
@@ -421,13 +449,15 @@ jobs:
           if [[ -f .gemini/styleguide.md ]]; then
             git add -- .gemini/styleguide.md
           fi
-          if [[ -f "$BOOTSTRAP_MANIFEST" ]]; then
-            while IFS= read -r bootstrap_file; do
-              if [[ -n "$bootstrap_file" ]]; then
-                git add -- "$bootstrap_file"
-              fi
-            done < "$BOOTSTRAP_MANIFEST"
-          fi
+          for manifest_file in "$AGENT_BOOTSTRAP_MANIFEST" "$BOOTSTRAP_MANIFEST"; do
+            if [[ -f "$manifest_file" ]]; then
+              while IFS= read -r bootstrap_file; do
+                if [[ -n "$bootstrap_file" ]]; then
+                  git add -- "$bootstrap_file"
+                fi
+              done < "$manifest_file"
+            fi
+          done
 
           if git diff --cached --quiet; then
             echo "No changes"
