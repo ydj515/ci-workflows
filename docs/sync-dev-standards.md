@@ -44,9 +44,7 @@ permissions:
 
 저장소 설정을 활성화하지 않으면 생성 branch push는 성공하더라도 pull request 생성은 실패할
 수 있습니다. 실패 후 `automation/dev-standards-sync` branch만 남은 상태에서 workflow를 다시
-실행하면, 변경 사항이 없다는 이유로 성공 종료하면서 pull request를 만들지 않을 수 있습니다.
-이 경우 해당 branch에서 pull request를 한 번 직접 생성하거나, 다음 동기화 전에 생성 branch를
-정리한 뒤 workflow를 실행합니다.
+실행하면 기준 branch와 생성 branch의 차이를 확인하여 누락된 pull request를 생성합니다.
 
 ## 입력값
 

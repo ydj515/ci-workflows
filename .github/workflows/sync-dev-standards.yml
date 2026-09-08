@@ -460,14 +460,21 @@ jobs:
           done
 
           if git diff --cached --quiet; then
-            echo "No changes"
-            exit 0
+            if [[ "$DELIVERY_MODE" == "direct" ]]; then
+              echo "No changes"
+              exit 0
+            fi
+          else
+            git commit -m "chore: sync development standards to $RESOLVED_REF"
           fi
-
-          git commit -m "chore: sync development standards to $RESOLVED_REF"
 
           if [[ "$DELIVERY_MODE" == "direct" ]]; then
             git push origin "HEAD:$BASE_BRANCH"
+            exit 0
+          fi
+
+          if git diff --quiet "origin/$BASE_BRANCH" HEAD --; then
+            echo "No changes relative to $BASE_BRANCH"
             exit 0
           fi
 
