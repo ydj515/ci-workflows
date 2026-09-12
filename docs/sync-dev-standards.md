@@ -19,6 +19,9 @@ React, Spring, Go 설정 예시는 다음 파일을 복사해 시작합니다.
 - [`spring-gradle-config.yml`](../examples/dev-standards/spring-gradle-config.yml)
 - [`go-config.yml`](../examples/dev-standards/go-config.yml)
 
+React 예시는 ESLint, Prettier, dependency-cruiser, Vitest coverage와 pnpm을 조합하여 정적
+분석, 포맷팅, 아키텍처 경계와 테스트 커버리지를 각각 독립된 품질 게이트로 구성합니다.
+
 ## 소비 저장소 사전 설정
 
 `delivery_mode: pull-request`를 사용하려면 소비 저장소에서 GitHub Actions의 pull request 생성
@@ -69,7 +72,7 @@ permissions:
 ```yaml
 jobs:
   sync:
-    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.2.1
+    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.2.3
     with:
       standards_owner: ydj515
       standards_repo: dev-standards
@@ -79,7 +82,7 @@ jobs:
 
 | 위치 | 대상 저장소 | 결정하는 내용 |
 | --- | --- | --- |
-| `uses: ...@v1.2.1` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·PR 절차 |
+| `uses: ...@v1.2.3` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·PR 절차 |
 | `standards_ref: latest-release` | `dev-standards` | 실행 시점의 최신 정식 Release |
 
 두 버전은 독립적입니다. 예를 들어 workflow 동작은 그대로 유지하면서 표준만 갱신하려면

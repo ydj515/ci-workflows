@@ -10,7 +10,10 @@ frameworks:
 
 tools:
   - eslint
+  - frameworks/react-ts/eslint-plugin-react-hooks
   - prettier
+  - frameworks/react-ts/dependency-cruiser
+  - frameworks/react-ts/vitest
   - pnpm
 
 runtimes:
