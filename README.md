@@ -1,46 +1,68 @@
-# Reusable Workflows Catalog
+# ci-workflows
 
-이 저장소는 공통으로 재사용하는 GitHub Actions 워크플로 카탈로그입니다.
-소비 저장소에서 `uses:` 구문으로 호출해 사용합니다.
+여러 저장소에서 공통으로 사용할 GitHub Actions workflow를 버전별로 제공하는 카탈로그입니다.
 
-## dev-standards와의 관계
+소비 저장소는 workflow 구현을 복사하지 않고 `uses:`로 호출합니다. 각 저장소는 trigger,
+permission과 입력값만 소유하고, 공통 checkout·생성·전달 절차는 이 저장소에서 관리합니다.
 
-- `dev-standards`: 개발 표준, AI 가이드 문서 및 설정 템플릿의 단일 원본
-- `ci-workflows`: 표준을 소비 저장소에 배포하고 동기화하는 재사용 워크플로
+## 제공 Workflow
 
-## 워크플로 카탈로그
+| Workflow | 역할 |
+| --- | --- |
+| `sync-dev-standards.yml` | `dev-standards` Release를 조합해 소비 저장소에 pull request로 전달 |
+| `gemini-pr-review-slack-noti.yml` | Gemini Code Assist의 pull request review 완료를 Slack으로 알림 |
 
-### Sync Development Standards
+## 빠른 시작
 
-- 목적: `.dev-standards/config.yml`을 기준으로 병합 styleguide, 개별 표준 및 선택적인
-  프로젝트 설정을 동기화
-- 위치: `.github/workflows/sync-dev-standards.yml`
-- 트리거: `workflow_call`, `workflow_dispatch`
-- 필수 입력: `standards_owner`
-- 권한: `contents: write`, `pull-requests: write`
-- 주요 산출물: `.dev-standards/styleguide.md`, `.dev-standards/standards/**`, 선택 시
-  `.gemini/styleguide.md`, `.dev-standards/lock.json`
-- 기본 전달 방식: `automation/dev-standards-sync` branch의 pull request
-- 초기화 선택: `bootstrap_agent_files`로 누락된 agent 진입 파일만 안전하게 생성
+다음 workflow는 매주 월요일 최신 `dev-standards` Release를 확인하고 변경사항이 있을 때 pull
+request를 생성합니다.
 
-[상세 사용 가이드](docs/sync-dev-standards.md)
+```yaml
+name: Sync Development Standards
 
-`uses`의 버전과 `standards_ref`의 차이는
-[두 버전 ref의 의미](docs/sync-dev-standards.md#두-버전-ref의-의미)를 참고합니다.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 0 * * 1"
 
-복사 가능한 예시:
+permissions:
+  contents: write
+  pull-requests: write
 
-- [상시 동기화 workflow](examples/dev-standards/sync-dev-standards.yml)
-- [최초 bootstrap workflow](examples/dev-standards/bootstrap-dev-standards.yml)
-- [React 설정](examples/dev-standards/react-config.yml)
-- [Spring/Gradle 설정](examples/dev-standards/spring-gradle-config.yml)
-- [Go 설정](examples/dev-standards/go-config.yml)
+jobs:
+  sync:
+    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.2.3
+    with:
+      standards_owner: ydj515
+      standards_repo: dev-standards
+      standards_ref: latest-release
+      delivery_mode: pull-request
+```
 
-### Notify Slack when Gemini review is done
+소비 저장소는 `.dev-standards/config.yml`에서 적용할 언어, 프레임워크, 아키텍처와 도구를
+선택합니다. 전체 설치 과정과 pull request 권한 설정은
+[Development Standards 동기화 가이드](docs/sync-dev-standards.md)를 참고합니다.
 
-- 목적: Gemini Code Assist PR 리뷰 완료 시 Slack 알림 전송
-- 위치: `.github/workflows/gemini-pr-review-slack-noti.yml`
-- 트리거: `pull_request_review` (`submitted`)
-- 필수 시크릿: `SLACK_REVIEW_WEBHOOK_URL`
+## 버전 정책
 
-[호출 workflow 예시](examples/gemini-pr-review-slack-notification.yml)
+- `uses: ...@v1.2.3`은 이 저장소의 workflow 구현과 입력 계약을 고정합니다.
+- `standards_ref: latest-release`는 실행 시점의 최신 `dev-standards` 정식 Release를 선택합니다.
+- 재현성이 필요한 환경은 두 값을 각각 tag 또는 commit SHA로 고정합니다.
+
+두 저장소의 버전은 독립적입니다. workflow 동작을 변경할 때는 `uses` ref를, 개발 표준을
+변경할 때는 `standards_ref`를 갱신합니다.
+
+## 문서
+
+- [문서 전체 보기](docs/README.md)
+- [Development Standards 동기화](docs/sync-dev-standards.md)
+- [복사 가능한 예시](examples/dev-standards/)
+
+## 개발
+
+변경 후 YAML 구문과 Git diff를 확인합니다.
+
+```sh
+ruby -ryaml -e 'Dir["{.github/workflows,examples}/**/*.yml"].each { |path| YAML.load_file(path) }'
+git diff --check
+```
