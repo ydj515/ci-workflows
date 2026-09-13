@@ -21,6 +21,9 @@ React, Spring, Go 설정 예시는 다음 파일을 복사해 시작합니다.
 
 React 예시는 ESLint, Prettier, dependency-cruiser, Vitest coverage와 pnpm을 조합하여 정적
 분석, 포맷팅, 아키텍처 경계와 테스트 커버리지를 각각 독립된 품질 게이트로 구성합니다.
+Spring/Gradle 예시는 Detekt, ktlint, Checkstyle, PMD, SpotBugs, ArchUnit과 Kover를 조합합니다.
+Java 중심 저장소는 `kover`를 `jacoco`로 교체하며 두 coverage selector는 함께 사용하지
+않습니다.
 
 ## 소비 저장소 사전 설정
 
@@ -116,6 +119,7 @@ SHA를 사용합니다. `main`은 소비 저장소의 파일을 변경하지 않
 - 나머지 배열은 생략하거나 빈 배열로 두면 조합하지 않습니다.
 - 복수 선택은 block 배열과 inline 배열을 지원합니다.
 - Prettier와 Biome는 동시에 선택하지 않습니다.
+- Kover와 JaCoCo는 동시에 선택하지 않습니다.
 - 짧은 tool 이름이 중복되면 `languages/python/ruff` 같은 qualified selector를 사용합니다.
 
 Spring의 기본 `layered-clean` 대신 bounded context 우선 구조를 적용하려면 다음처럼

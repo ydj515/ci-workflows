@@ -14,9 +14,12 @@ builds:
 
 tools:
   - detekt
+  - ktlint
   - checkstyle
   - pmd
   - spotbugs
+  - archunit
+  - kover
 
 runtimes:
   - mise
