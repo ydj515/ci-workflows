@@ -75,7 +75,7 @@ permissions:
 ```yaml
 jobs:
   sync:
-    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.2.3
+    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.3.0
     with:
       standards_owner: ydj515
       standards_repo: dev-standards
@@ -85,7 +85,7 @@ jobs:
 
 | 위치 | 대상 저장소 | 결정하는 내용 |
 | --- | --- | --- |
-| `uses: ...@v1.2.3` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·PR 절차 |
+| `uses: ...@v1.3.0` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·PR 절차 |
 | `standards_ref: latest-release` | `dev-standards` | 실행 시점의 최신 정식 Release |
 
 두 버전은 독립적입니다. 예를 들어 workflow 동작은 그대로 유지하면서 표준만 갱신하려면
@@ -109,7 +109,8 @@ SHA를 사용합니다. `main`은 소비 저장소의 파일을 변경하지 않
 `base`, `languages`, `architectures`, `frameworks`, `builds`, `tools`, `runtimes`는 모두 선택
 항목입니다.
 
-- `base`를 생략하면 포함하며, 제외하려면 `base: false`를 지정합니다.
+- `base`를 생략하면 `base.md`와 `workflows/`의 commit·PR·branch·worktree 가이드를 포함하며,
+  모두 제외하려면 `base: false`를 지정합니다.
 - 언어 선택만으로 architecture를 자동 추론하지 않습니다.
 - `architectures`를 생략하면 Spring=`layered-clean`, FastAPI=`feature-layered`,
   React=`feature-sliced`, Next.js=`route-feature` 기본값을 framework 선택에 따라 자동
@@ -152,7 +153,7 @@ request를 만들지 않습니다.
 
 ## 최초 Bootstrap
 
-누락된 `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`만 pull request에 추가하려면 상시 동기화
+누락된 `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.worktreeinclude`만 pull request에 추가하려면 상시 동기화
 workflow에 다음 입력을 둡니다. 기존 agent 파일과 프로젝트 설정은 변경하지 않습니다.
 
 ```yaml
@@ -166,8 +167,10 @@ with:
 
 bootstrap은 다음 규칙을 따릅니다.
 
-- 누락된 `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`를 생성합니다.
+- 누락된 `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.worktreeinclude`를 생성합니다.
 - 기존 agent 파일은 덮어쓰거나 자동 병합하지 않고 경고 후 보존합니다.
+- 루트 `.worktreeinclude`도 기존 파일을 보존하고, 없을 때 주석만 있는 템플릿을 생성합니다.
+  이 파일은 `lock.json`에서 프로젝트 소유로 기록하며 자동으로 복사 패턴을 추가하지 않습니다.
 - 하나 이상의 언어를 선택하면 `.editorconfig`를 생성합니다.
 - 선택한 build, tool, runtime에 대응하는 실제 설정 파일만 복사합니다.
 - 다른 내용의 기존 설정 파일이 있으면 어떤 파일도 복사하기 전에 실패합니다.
@@ -186,11 +189,25 @@ with:
 
 ## Agent 진입 파일
 
+Skill을 포함한 dev-standards 버전에서는 `.dev-standards/{codex,claude,gemini}/skills/`도
+동기화하고 `lock.json`에 관리 파일로 기록합니다. 기존 agent 폴더에 규칙을 적용하려면
+배포된 `skills/merge-dev-standards/SKILL.md`를 읽고 실행하도록 요청합니다. 세 배포본은
+동일하며 실행 client와 관계없이 기본적으로 세 agent의 규칙을 모두 처리합니다.
+사용자가 대상을 제한하면 그 대상만 처리합니다. 이 단계에서 기존 규칙을
+보존하며 공유 표준 참조와 native skill을 병합합니다. CI는 native agent 설정을 자동 병합하지
+않습니다. 자세한 경로와 실행 방법은
+[Agent별 공유 규칙 적용 Skill](https://github.com/ydj515/dev-standards/blob/main/docs/agent-skills.md)을 참고합니다.
+
+Skill의 병합도 아래 bootstrap과 동일하게 `AGENTS.md`를 공통 규칙의 SSOT로 사용합니다.
+전체 대상 실행 시 없는 `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`를 생성하고, Claude와 Gemini의
+진입 파일에는 각각 `@AGENTS.md`, `@./AGENTS.md`를 병합합니다. 대상을 제한해도 공통 의존
+파일 `AGENTS.md`는 함께 처리합니다.
+
 새로 생성되는 agent 파일의 참조 관계는 다음과 같습니다.
 
 ```text
 CLAUDE.md ─┐
-           ├─> AGENTS.md ─> .dev-standards/styleguide.md
+           ├─> AGENTS.md ─> .dev-standards/standards/ 중 작업에 필요한 원본
 GEMINI.md ─┘
 ```
 
@@ -199,8 +216,24 @@ GEMINI.md ─┘
 ```markdown
 ## Shared Development Standards
 
-Before modifying code, read `.dev-standards/styleguide.md`.
-Repository-specific instructions in this file take precedence over the shared styleguide.
+Use the original guides under `.dev-standards/standards/` selectively.
+All paths below are relative to that directory; read only files that exist.
+
+- Read `base.md` before modifying code, when present.
+- Before starting change work or choosing a branch, read `workflows/branch.md`.
+- For isolated or parallel work, worktree setup, or cleanup, read `workflows/worktree.md`.
+- When drafting or revising a commit message, read `workflows/commit.md`.
+- When drafting or revising a PR title or description, read `workflows/pr.md`.
+- For the language of the affected code, read its guide under `languages/`.
+- For module structure or dependency boundaries, read the applicable guide under `architectures/`.
+- For framework code, read the applicable guide under `frameworks/`.
+- For build or dependency configuration, read the applicable guide under `build-tools/`.
+- For tool configuration or tool-specific work, read the applicable guide under `tools/`.
+- For development runtime or environment changes, read the applicable guide under `runtime/`.
+
+Match guides to the affected module; do not load unrelated languages or frameworks.
+Do not read every guide or the merged `.dev-standards/styleguide.md` by default.
+Repository-specific instructions in this file take precedence over shared guides.
 ```
 
 `CLAUDE.md`와 `GEMINI.md`는 각각 다음과 같이 `AGENTS.md`만 참조합니다.
