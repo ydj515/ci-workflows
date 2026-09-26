@@ -23,10 +23,10 @@ on:
         type: string
         default: .dev-standards/config.yml
       sync_gemini:
-        description: Also sync guide to .gemini/styleguide.md for Gemini Code Assist
+        description: Deprecated compatibility input; ignored. Agent directories are project-owned.
         required: false
         type: boolean
-        default: true
+        default: false
       bootstrap_templates:
         description: Create missing agent files and copy selected configuration templates safely
         required: false
@@ -79,10 +79,10 @@ on:
         type: string
         default: .dev-standards/config.yml
       sync_gemini:
-        description: Also sync guide to .gemini/styleguide.md for Gemini Code Assist
+        description: Deprecated compatibility input; ignored. Agent directories are project-owned.
         required: false
         type: boolean
-        default: true
+        default: false
       bootstrap_templates:
         description: Create missing agent files and copy selected configuration templates safely
         required: false
@@ -130,7 +130,6 @@ jobs:
       STANDARDS_REPO: ${{ inputs.standards_repo }}
       STANDARDS_REF: ${{ inputs.standards_ref }}
       CONFIG_PATH: ${{ inputs.config_path }}
-      SYNC_GEMINI: ${{ inputs.sync_gemini }}
       BOOTSTRAP_TEMPLATES: ${{ inputs.bootstrap_templates }}
       BOOTSTRAP_AGENT_FILES: ${{ inputs.bootstrap_agent_files }}
       BOOTSTRAP_MISE_PROFILE: ${{ inputs.bootstrap_mise_profile }}
@@ -261,11 +260,6 @@ jobs:
             --modules-dir .dev-standards/standards \
             --source-ref "$STANDARDS_OWNER/$STANDARDS_REPO@$RESOLVED_REF"
 
-          if [[ "$SYNC_GEMINI" == "true" || -d .gemini ]]; then
-            mkdir -p .gemini
-            cp .dev-standards/styleguide.md .gemini/styleguide.md
-          fi
-
           if [[ -f .dev-standards/guide.md ]]; then
             rm -f -- .dev-standards/guide.md
           fi
@@ -393,10 +387,6 @@ jobs:
             fi
           done
 
-          if [[ -f .gemini/styleguide.md ]]; then
-            record_managed .gemini/styleguide.md
-          fi
-
           for agent_file in AGENTS.md CLAUDE.md GEMINI.md .worktreeinclude; do
             record_project_owned "$agent_file"
           done
@@ -459,9 +449,6 @@ jobs:
           done
           if git ls-files --error-unmatch .dev-standards/guide.md >/dev/null 2>&1; then
             git add -u -- .dev-standards/guide.md
-          fi
-          if [[ -f .gemini/styleguide.md ]]; then
-            git add -- .gemini/styleguide.md
           fi
           for manifest_file in "$AGENT_BOOTSTRAP_MANIFEST" "$BOOTSTRAP_MANIFEST"; do
             if [[ -f "$manifest_file" ]]; then

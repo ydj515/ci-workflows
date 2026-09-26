@@ -60,7 +60,7 @@ permissions:
 | `standards_repo` | 아니요 | `dev-standards` | 표준 저장소 이름 |
 | `standards_ref` | 아니요 | `latest-release` | 최신 정식 Release, branch, tag 또는 commit SHA |
 | `config_path` | 아니요 | `.dev-standards/config.yml` | 소비 저장소의 선택 설정 경로 |
-| `sync_gemini` | 아니요 | `true` | `.gemini/styleguide.md` 동기화 여부 |
+| `sync_gemini` | 아니요 | `false` | Deprecated. 기존 호출 호환용이며 값과 무관하게 무시 |
 | `bootstrap_templates` | 아니요 | `false` | agent 파일과 선택 설정의 최초 복사 여부 |
 | `bootstrap_agent_files` | 아니요 | `false` | 누락된 agent 진입 파일만 생성할지 여부 |
 | `bootstrap_mise_profile` | 아니요 | 빈 값 | 모호한 mise 후보를 선택할 profile |
@@ -75,7 +75,7 @@ permissions:
 ```yaml
 jobs:
   sync:
-    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.3.0
+    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.3.1
     with:
       standards_owner: ydj515
       standards_repo: dev-standards
@@ -85,7 +85,7 @@ jobs:
 
 | 위치 | 대상 저장소 | 결정하는 내용 |
 | --- | --- | --- |
-| `uses: ...@v1.3.0` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·PR 절차 |
+| `uses: ...@v1.3.1` | `ci-workflows` | 실행할 reusable workflow의 버전, 입력 계약, checkout·생성·PR 절차 |
 | `standards_ref: latest-release` | `dev-standards` | 실행 시점의 최신 정식 Release |
 
 두 버전은 독립적입니다. 예를 들어 workflow 동작은 그대로 유지하면서 표준만 갱신하려면
@@ -141,7 +141,6 @@ architectures: [domain-oriented]
 .dev-standards/styleguide.md
 .dev-standards/standards/**
 .dev-standards/lock.json
-.gemini/styleguide.md          # sync_gemini이 true이거나 .gemini/가 이미 있을 때
 ```
 
 `lock.json`에는 요청 ref, 해석된 Release tag, resolved commit SHA, config checksum, 관리 파일
@@ -150,6 +149,18 @@ request를 만들지 않습니다.
 
 이전 `.dev-standards.yml`을 유지해야 하는 전환 기간에는 `config_path`를 명시할 수 있지만,
 새 산출물은 항상 `.dev-standards/` 아래에 생성됩니다.
+
+## 기존 Gemini 복사본 전환
+
+- 동기화는 `.gemini/`를 생성하거나 기존 파일을 수정·삭제하지 않습니다. 이전에 복사된
+  `.gemini/styleguide.md`도 보존하며 새 lock에서는 managed 목록에서 제외합니다.
+- `sync_gemini`는 기존 소비 workflow의 호출 호환성을 위해 입력만 유지하고 무시합니다.
+  신규 설정에서는 생략합니다.
+- 소비 workflow가 이전 `ci-workflows` tag/SHA를 사용하면 새 릴리스로 `uses` 참조를 먼저
+  갱신해야 합니다. `standards_ref`만 변경해도 workflow 구현이 갱신되지는 않습니다.
+- 새 workflow로 생성한 동기화 PR의 변경 파일을 확인하고 머지합니다. 이전 workflow가
+  만든 PR은 재실행해 갱신한 뒤 검토합니다. 기존 Gemini 복사본은 더 이상 갱신되지 않으므로
+  계속 사용할지 수동 정리할지는 소비 저장소에서 결정합니다. `.gemini/` 전체를 삭제하지 않습니다.
 
 ## 최초 Bootstrap
 

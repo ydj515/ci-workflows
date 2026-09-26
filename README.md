@@ -31,7 +31,7 @@ permissions:
 
 jobs:
   sync:
-    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.3.0
+    uses: ydj515/ci-workflows/.github/workflows/sync-dev-standards.yml@v1.3.1
     with:
       standards_owner: ydj515
       standards_repo: dev-standards
@@ -45,7 +45,7 @@ jobs:
 
 ## 버전 정책
 
-- `uses: ...@v1.3.0`은 이 저장소의 workflow 구현과 입력 계약을 고정합니다.
+- `uses: ...@v1.3.1`은 이 저장소의 workflow 구현과 입력 계약을 고정합니다.
 - `standards_ref: latest-release`는 실행 시점의 최신 `dev-standards` 정식 Release를 선택합니다.
 - 재현성이 필요한 환경은 두 값을 각각 tag 또는 commit SHA로 고정합니다.
 
