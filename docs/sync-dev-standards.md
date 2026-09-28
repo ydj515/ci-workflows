@@ -96,7 +96,8 @@ ref를 변경합니다. 두 저장소의 변경이 함께 필요한 릴리스에
 ref에는 다음 값을 사용할 수 있습니다.
 
 - `latest-release`: GitHub의 최신 정식 Release tag를 해석합니다.
-- `main`: 실행할 때마다 해당 저장소 기본 branch의 최신 상태를 사용합니다.
+- `main`: 해당 저장소의 `main` branch를 사용합니다. 기본 branch 이름이 다르면 그 이름을
+  지정합니다.
 - `v1.2.0` 같은 tag: 명시한 릴리스 버전을 사용합니다.
 - commit SHA: 정확한 commit을 고정하므로 재현성이 가장 높습니다.
 
@@ -140,8 +141,14 @@ architectures: [domain-oriented]
 ```text
 .dev-standards/styleguide.md
 .dev-standards/standards/**
+.dev-standards/codex/skills/**
+.dev-standards/claude/skills/**
+.dev-standards/gemini/skills/**
 .dev-standards/lock.json
 ```
+
+skill 배포 경로는 선택한 `dev-standards` 버전에 skill 템플릿이 있을 때 생성됩니다.
+native agent 폴더의 설정과 설치된 skill은 CI가 자동 병합하지 않습니다.
 
 `lock.json`에는 요청 ref, 해석된 Release tag, resolved commit SHA, config checksum, 관리 파일
 checksum과 파일 소유권을 기록합니다. 주간 실행 결과가 기존 상태와 같으면 commit과 pull
@@ -182,11 +189,15 @@ bootstrap은 다음 규칙을 따릅니다.
 - 기존 agent 파일은 덮어쓰거나 자동 병합하지 않고 경고 후 보존합니다.
 - 루트 `.worktreeinclude`도 기존 파일을 보존하고, 없을 때 주석만 있는 템플릿을 생성합니다.
   이 파일은 `lock.json`에서 프로젝트 소유로 기록하며 자동으로 복사 패턴을 추가하지 않습니다.
-- 하나 이상의 언어를 선택하면 `.editorconfig`를 생성합니다.
+- `bootstrap_templates: true`이고 하나 이상의 언어를 선택하면 소비 저장소 루트에
+  `.editorconfig`를 생성합니다. `bootstrap_agent_files`만 활성화하면 생성하지 않습니다.
 - 선택한 build, tool, runtime에 대응하는 실제 설정 파일만 복사합니다.
 - 다른 내용의 기존 설정 파일이 있으면 어떤 파일도 복사하기 전에 실패합니다.
 - React와 Spring 애플리케이션 디렉터리 또는 소스 코드는 생성하지 않습니다.
 - 기존 `build.gradle.kts`는 수정하지 않습니다. 품질 도구 Kotlin DSL 예시는 직접 병합합니다.
+
+복사 원본과 도구별 설정 우선순위는
+[`.editorconfig와 도구별 설정`](https://github.com/ydj515/dev-standards/blob/main/docs/bootstrap.md#editorconfig와-도구별-설정)을 참고합니다.
 
 여러 mise 후보가 선택되면 profile을 명시합니다.
 
@@ -209,7 +220,7 @@ Skill을 포함한 dev-standards 버전에서는 `.dev-standards/{codex,claude,g
 않습니다. 자세한 경로와 실행 방법은
 [Agent별 공유 규칙 적용 Skill](https://github.com/ydj515/dev-standards/blob/main/docs/agent-skills.md)을 참고합니다.
 
-Skill의 병합도 아래 bootstrap과 동일하게 `AGENTS.md`를 공통 규칙의 SSOT로 사용합니다.
+Skill의 병합도 bootstrap과 동일하게 `AGENTS.md`를 공통 규칙의 SSOT로 사용합니다.
 전체 대상 실행 시 없는 `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`를 생성하고, Claude와 Gemini의
 진입 파일에는 각각 `@AGENTS.md`, `@./AGENTS.md`를 병합합니다. 대상을 제한해도 공통 의존
 파일 `AGENTS.md`는 함께 처리합니다.
