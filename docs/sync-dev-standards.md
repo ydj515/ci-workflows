@@ -207,7 +207,28 @@ with:
   bootstrap_mise_profile: gradle
 ```
 
-지원 profile은 `gradle`, `maven`, `go`, `python`, `typescript`입니다.
+지원 profile은 `gradle`, `maven`, `go`, `python`, `typescript`입니다. profile은
+도구와 품질 검증 기준만 선택합니다. frontend/backend/infra 구성의 실행 task는 선택한
+profile의 `mise.toml`에 프로젝트가 직접 병합합니다. bootstrap은 애플리케이션 소스나
+Compose 파일을 생성하지 않습니다.
+
+다음 파일 묶음은 환경 템플릿 배포를 지원하는 `standards_ref`를 선택했을 때 적용됩니다.
+기존 릴리스의 bootstrap은 `mise.toml`만 복사할 수 있으므로, `latest-release`라는 선택값만으로
+아래 파일들이 생성된다고 가정하지 않습니다. 해당 변경이 포함된 릴리스인지 확인합니다.
+
+지원 ref에서 mise 선택 시 `mise.toml`, `mise.dev.toml`, `mise.prod.toml`과 개인 설정/ignore 채택용
+`mise.dev.local.toml.example`, `mise.gitignore.example`을 복사합니다. 기존 환경 설정도
+내용이 다르면 덮어쓰지 않고 사전에 실패합니다. local 실행은 `-E` 없는 기본 환경,
+공유 환경은 `mise -E dev ...`와 `mise -E prod ...`로 선택합니다.
+`mise.gitignore.example`은 기존 `.gitignore`에 직접 병합해야 합니다. 재사용 workflow의
+`bootstrap_mise_profile` 허용값도 위의 다섯 profile로 제한합니다. 환경·lock·실행 순서는
+[mise runtime 가이드](https://github.com/ydj515/dev-standards/blob/main/standards/runtime/mise.md)를 참고합니다.
+
+CI는 bootstrap으로 도구와 공통 환경 설정을 배포하지만 애플리케이션을 실행하거나 Docker
+Compose 서비스를 자동으로 시작하지 않습니다. frontend/backend/infra 모노레포의 실행 task는
+소비 저장소의 `mise.toml`에 병합하고, `dev:frontend`와 `dev:stack`을 분리해 관리합니다.
+품질 검증 workflow에서는 `mise install --locked` 후 `mise run ci`처럼 종료되는 검증 task만
+호출하며, 통합 테스트에 서비스가 필요하면 workflow 단계에서 명시적으로 준비합니다.
 
 ## Agent 진입 파일
 
